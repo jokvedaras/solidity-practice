@@ -54,9 +54,14 @@ contract GlobalMessenger {
     function createGroup(string calldata _group) external {
         require(groupToGroupInfoMap[_group].owner == address(0), "group already exists");
 
+        // g is a storage pointer
         GroupInfo storage g = groupToGroupInfoMap[_group];
         g.owner = msg.sender;
         g.members.push(msg.sender);
+
+        // could also do
+        //groupToGroupInfoMap[_group].owner = msg.sender;
+        //groupToGroupInfoMap[_group].members.push(msg.sender);
 
         emit GroupCreated(_group, msg.sender);
     }

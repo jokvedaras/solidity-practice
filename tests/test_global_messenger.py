@@ -18,20 +18,32 @@ def global_messagenger_contract(owner, project):
 def not_owner(accounts):
     return accounts[1]
 
-def test_create_group(global_messagenger_contract, owner, not_owner):
-    global_messagenger_contract.createGroup("hello-world", sender=owner)
-    assert owner == global_messagenger_contract.getGroupOwner("hello-world")
+topic1 = "hello-world"
+topic2 = "good-day"
+
+def initialize_groups(m_contract, owner, person):
+    m_contract.createGroup(topic1, sender=owner)
+    assert owner == m_contract.getGroupOwner(topic1)
+    assert person != m_contract.getGroupOwner(topic1)
 
     # ensure GroupCreated event is emitted
-    event = global_messagenger_contract.GroupCreated
-    logs = event.range(0, ape.chain.blocks.head.number + 1)
+    assert count_events(m_contract.GroupCreated) == 1
+
+    m_contract.createGroup(topic2, sender=person)
+
+def count_events(m_contract_event_topic):
+    logs = m_contract_event_topic.range(0, ape.chain.blocks.head.number + 1)
 
     # Count number of logs
     counter = 0
     for log in logs:
         counter += 1
 
-    assert counter == 1
+    return counter
+
+
+def test_create_group(global_messagenger_contract, owner, not_owner):
+    initialize_groups(global_messagenger_contract, owner, not_owner)
 
     # fails
     with pytest.raises(Exception) as e:
@@ -41,31 +53,39 @@ def test_create_group(global_messagenger_contract, owner, not_owner):
     # fails
     assert not_owner != global_messagenger_contract.getGroupOwner("hello-world")
 
+
 def test_add_user(global_messagenger_contract, owner, not_owner):
-    global_messagenger_contract.createGroup("hello-world", sender=owner)
-    assert owner == global_messagenger_contract.getGroupOwner("hello-world")
+    initialize_groups(global_messagenger_contract, owner, not_owner)
 
     # fails
     with pytest.raises(Exception) as e:
-        global_messagenger_contract.addUserToGroup("hello-world", not_owner, sender=not_owner)
+        global_messagenger_contract.addUserToGroup(topic1, not_owner, sender=not_owner)
     assert e.value.message == "not owner of this group"
 
     # fails
     with pytest.raises(Exception) as d:
-        global_messagenger_contract.getGroupMessage("hello-world", sender=not_owner)
+        global_messagenger_contract.getGroupMessage(topic1, sender=not_owner)
     assert d.value.message == "not in group"
 
-    global_messagenger_contract.addUserToGroup("hello-world", not_owner, sender=owner)
-    global_messagenger_contract.getGroupMessage("hello-world", sender=not_owner)
+    global_messagenger_contract.addUserToGroup(topic1, not_owner, sender=owner)
+    global_messagenger_contract.getGroupMessage(topic1, sender=not_owner)
+
 
 def test_group_message(global_messagenger_contract, owner, not_owner):
-    global_messagenger_contract.createGroup("hello-world", sender=owner)
-    assert owner == global_messagenger_contract.getGroupOwner("hello-world")
+    initialize_groups(global_messagenger_contract, owner, not_owner)
 
-    global_messagenger_contract.sendGroupMessage("hello-world", "message #1", sender=owner)
-    val = global_messagenger_contract.getGroupMessage("hello-world", sender=owner)
+    global_messagenger_contract.sendGroupMessage(topic1, "message #1", sender=owner)
+    val = global_messagenger_contract.getGroupMessage(topic1, sender=owner)
     assert val == "message #1"
 
     with pytest.raises(Exception) as e:
-        global_messagenger_contract.getGroupMessage("hello-world", sender=not_owner)
+        global_messagenger_contract.getGroupMessage(topic1, sender=not_owner)
     assert e.value.message == "not in group"
+
+    global_messagenger_contract.sendGroupMessage(topic1, "message #2", sender=owner)
+    val = global_messagenger_contract.getGroupMessage(topic1, sender=owner)
+    assert val == "message #2"
+
+    global_messagenger_contract.sendGroupMessage(topic2, "message #3", sender=not_owner)
+    val = global_messagenger_contract.getGroupMessage(topic2, sender=not_owner)
+    assert val == "message #3"
