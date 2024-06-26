@@ -12,20 +12,20 @@ pragma solidity ^0.8.26;
  * - emit events when groups are created, users are added/removed, messages are added
  */
 
+// Notes
+// The default value for everything in the EVM is zero
+
 contract GlobalMessenger {
 
     // Contract State Variables
+    struct GroupInfo {
+        address owner;
+        address[] members;
+        string[] messages;
+    }
 
-    // TODO - Refactor to a struct that contains the address and isOwner/isAdmin boolean
-    // TODO - May even add history of messages in the struct? unsure
-    // Unique group name to all members
-    mapping(string group => address[] members) public groupToMemberMap;
-
-    // Unique group name to owner
-    mapping(string group => address owner) public groupToOwnerMap;
-
-    // Unique group name to list of messages
-    mapping(string group => string[] msgs) public groupToMessagesMap;
+    // Key is a unique group name
+    mapping(string group => GroupInfo group_info) public groupToGroupInfoMap;
 
     // Events
     event GroupCreated(string indexed group_name, address indexed owner);
@@ -35,13 +35,13 @@ contract GlobalMessenger {
     constructor() {}
 
     modifier isOwnerOfGroup(string calldata _group) {
-        require(groupToOwnerMap[_group] != address(0), "no group with that name");
-        require(groupToOwnerMap[_group] == msg.sender, "not owner of this group");
+        require(groupToGroupInfoMap[_group].owner != address(0), "no group with that name");
+        require(groupToGroupInfoMap[_group].owner == msg.sender, "not owner of this group");
         _;
     }
 
     modifier groupExists(string calldata _group) {
-        require(groupToOwnerMap[_group] != address(0), "no group with that name");
+        require(groupToGroupInfoMap[_group].owner != address(0), "no group with that name");
         _;
     }
 
@@ -52,20 +52,21 @@ contract GlobalMessenger {
     }
 
     function createGroup(string calldata _group) external {
-        require(groupToOwnerMap[_group] == address(0), "group already exists");
+        require(groupToGroupInfoMap[_group].owner == address(0), "group already exists");
 
-        groupToMemberMap[_group].push(msg.sender);
-        groupToOwnerMap[_group]  = msg.sender;
+        GroupInfo storage g = groupToGroupInfoMap[_group];
+        g.owner = msg.sender;
+        g.members.push(msg.sender);
 
         emit GroupCreated(_group, msg.sender);
     }
 
     function getGroupOwner(string calldata _group) external view groupExists(_group) returns (address owner) {
-        return groupToOwnerMap[_group];
+        return groupToGroupInfoMap[_group].owner;
     }
 
     function isInGroup(string calldata _group) public view groupExists(_group) returns (bool) {
-        address[] memory members = groupToMemberMap[_group];
+        address[] memory members = groupToGroupInfoMap[_group].members;
         for (uint i = 0; i < members.length; i++)
         {
             if (members[i] == msg.sender) {
@@ -77,12 +78,12 @@ contract GlobalMessenger {
 
     function sendGroupMessage(string calldata _group, string calldata _msg) external senderInGroup(_group) {
         // Add message to structure.
-        groupToMessagesMap[_group].push(_msg);
+        groupToGroupInfoMap[_group].messages.push(_msg);
         emit NewMessage(_group);
     }
 
     function getGroupMessage(string calldata _group) external view senderInGroup(_group) returns (string memory) {
-        string[] memory msgs = groupToMessagesMap[_group];
+        string[] memory msgs = groupToGroupInfoMap[_group].messages;
         uint l = msgs.length;
 
         if (l > 0){
@@ -93,7 +94,7 @@ contract GlobalMessenger {
     }
 
     function addUserToGroup(string calldata _group, address _toAdd) external isOwnerOfGroup(_group) {
-        groupToMemberMap[_group].push(_toAdd);
+        groupToGroupInfoMap[_group].members.push(_toAdd);
         emit UserAdded(_group, _toAdd);
     }
 
